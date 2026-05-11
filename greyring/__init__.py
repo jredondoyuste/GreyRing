@@ -20,4 +20,5 @@ from .wkb_reflectivity import (
     greybody_eikonal_qnm,
     greybody_second_order_lr,
     greybody_second_order_qnm,
+    greybody_third_order_lr,
 )
