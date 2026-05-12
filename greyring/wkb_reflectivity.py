@@ -1,15 +1,15 @@
 """
-WKB greybody factors parametrized by light-ring or QNM quantities.
+WKB reflectivity parametrized by light-ring or QNM quantities.
 
-Models at eikonal, second-order, and third-order WKB with two
-parametrizations each (potential/LR derivatives and QNM frequencies).
+Returns the REFLECTIVITY R = 1/(1 + exp(-2*pi*i*nu)), consistent with
+the GreyRing convention: |R| -> 1 below the barrier, |R| -> 0 above.
 
-Convention: Gamma = 1 / (1 + exp(2 pi i K)), consistent with
-Konoplya & Zhidenko (2408.11162) eq (18) and Iyer & Will (1987).
+The transmission coefficient is T = 1/(1 + exp(+2*pi*i*nu));
+|T|^2 + |R|^2 = 1 for real potentials.
 
-The full exponent is 2*i*pi*(nu+1/2) where nu+1/2 = iQ0/sqrt(2Q0'') - Lambda - Omega.
-Lambda (2nd order, Iyer-Will eq 1.5a) is REAL -> introduces arg(Gamma).
-Omega  (3rd order, Iyer-Will eq 1.5b) is IMAGINARY -> corrects |Gamma|.
+nu = iQ0/sqrt(2Q0'') - Lambda - Omega  (Iyer & Will 1987).
+Lambda (2nd order, eq 1.5a) is REAL  -> introduces arg(R).
+Omega  (3rd order, eq 1.5b) is IMAG  -> corrects |R|.
 """
 
 import numpy as np
@@ -38,7 +38,7 @@ def greybody_eikonal_lr(omega: np.ndarray, omega_lr: float, lambda_lr: float) ->
     lambda_lr : Lyapunov exponent lambda_LR
     """
     iK = (omega_lr**2 - omega**2) / (2.0 * omega_lr * lambda_lr)
-    return _safe_gamma(2.0 * np.pi * iK)
+    return _safe_gamma(-2.0 * np.pi * iK)
 
 
 def greybody_eikonal_qnm(omega: np.ndarray, f0: float, t0: float) -> np.ndarray:
@@ -55,7 +55,7 @@ def greybody_eikonal_qnm(omega: np.ndarray, f0: float, t0: float) -> np.ndarray:
     t0 : (minus) imaginary part of the fundamental QNM frequency
     """
     k_factor = -1j * (omega**2 - f0**2) / (4.0 * f0 * t0)
-    return _safe_gamma(-2.0 * np.pi * 1j * k_factor)
+    return _safe_gamma(2.0 * np.pi * 1j * k_factor)
 
 
 def _lambda_iw(V2, v3, v4, K0_sq, sqrt_neg2V2):
@@ -115,7 +115,7 @@ def greybody_second_order_lr(
     V2, sqrt_neg2V2, iK0, K0, K0_sq = _lr_common(omega, omega_lr, lambda_lr)
     Lambda = _lambda_iw(V2, v3, v4, K0_sq, sqrt_neg2V2)
     exponent = 2.0 * np.pi * iK0 - 2j * np.pi * Lambda
-    return _safe_gamma(exponent)
+    return _safe_gamma(-exponent)
 
 
 def greybody_third_order_lr(
@@ -147,7 +147,7 @@ def greybody_third_order_lr(
     Lambda = _lambda_iw(V2, v3, v4, K0_sq, sqrt_neg2V2)
     Omega = _omega_iw(V2, v3, v4, v5, v6, K0, K0_sq)
     exponent = 2.0 * np.pi * iK0 - 2j * np.pi * Lambda - 2j * np.pi * Omega
-    return _safe_gamma(exponent)
+    return _safe_gamma(-exponent)
 
 
 def greybody_second_order_qnm(
@@ -194,4 +194,4 @@ def greybody_second_order_qnm(
     )
 
     k_factor = -1j * w2_f02 / (4.0 * f0 * t0) + Delta1 + Delta2 + Deltaf
-    return _safe_gamma(-2.0 * np.pi * 1j * k_factor)
+    return _safe_gamma(2.0 * np.pi * 1j * k_factor)
