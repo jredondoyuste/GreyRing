@@ -16,8 +16,6 @@ from pathlib import Path
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize, curve_fit
 
-from .model_utils import amp_model
-
 _EXP_CLIP = 500.0
 
 WKB_KEYS: dict[int, tuple[str, ...]] = {
@@ -28,7 +26,7 @@ WKB_KEYS: dict[int, tuple[str, ...]] = {
 
 
 def greybody_wkb(omega: np.ndarray, num_wkb: int, pars: dict) -> np.ndarray:
-    """WKB greybody factor Gamma(omega).
+    """WKB reflectivity R(omega) = 1 - Gamma(omega).
 
     Parameters
     ----------
@@ -38,7 +36,7 @@ def greybody_wkb(omega: np.ndarray, num_wkb: int, pars: dict) -> np.ndarray:
 
     Returns
     -------
-    Gamma : greybody factor, real array in [0, 1]
+    R : reflectivity, real array in [0, 1].  R -> 1 at low freq, R -> 0 at high freq.
     """
     omega = np.asarray(omega, dtype=float)
     f0 = pars["f0"]
@@ -74,20 +72,24 @@ def greybody_wkb(omega: np.ndarray, num_wkb: int, pars: dict) -> np.ndarray:
         raise ValueError("num_wkb must be 1, 2, or 3")
 
     exponent = np.clip(2.0 * np.pi * iK, -_EXP_CLIP, _EXP_CLIP)
-    return 1.0 / (1.0 + np.exp(exponent))
+    return 1.0 / (1.0 + np.exp(-exponent))
+
+
+def _amp_model(omega: np.ndarray, R: np.ndarray, A: float, p: float) -> np.ndarray:
+    """Amplitude model: |h(omega)| = A * R(omega) / omega^p."""
+    return A * R / omega**p
 
 
 def model_wkb(
     omega: np.ndarray,
     num_wkb: int,
     pars_wkb: dict,
-    M_final: float,
     A: float,
     p: float,
 ) -> np.ndarray:
-    """Amplitude model: |h(omega)| = A * Gamma(omega) * M_f / omega^p."""
-    gamma = greybody_wkb(omega, num_wkb, pars_wkb)
-    return amp_model(omega, gamma, M_final, A, p)
+    """Amplitude model: |h(omega)| = A * R(omega) / omega^p."""
+    R = greybody_wkb(omega, num_wkb, pars_wkb)
+    return _amp_model(omega, R, A, p)
 
 
 def amp_mismatch(omega: np.ndarray, abs1: np.ndarray, abs2: np.ndarray) -> float:
@@ -104,7 +106,6 @@ def amp_mismatch(omega: np.ndarray, abs1: np.ndarray, abs2: np.ndarray) -> float
 def fit_wkb_amplitude(
     omega_fit: np.ndarray,
     H_fit: np.ndarray,
-    M_final: float,
     num_wkb: int,
     x0_wkb: list[float],
 ) -> dict:
@@ -117,7 +118,6 @@ def fit_wkb_amplitude(
     ----------
     omega_fit : frequency array in the fit interval
     H_fit : complex waveform in the fit interval
-    M_final : remnant mass
     num_wkb : WKB order (1, 2, or 3)
     x0_wkb : initial guess for WKB parameters, ordered as WKB_KEYS[num_wkb]
 
@@ -137,19 +137,19 @@ def fit_wkb_amplitude(
         if num_wkb >= 3 and pars.get("t1", -1.0) >= 0:
             return 1.0
         try:
-            gamma = greybody_wkb(omega_fit, num_wkb, pars)
+            R = greybody_wkb(omega_fit, num_wkb, pars)
         except Exception:
             return 1.0
-        if not np.all(np.isfinite(gamma)) or np.max(gamma) < 1e-30:
+        if not np.all(np.isfinite(R)) or np.max(R) < 1e-30:
             return 1.0
         try:
             popt, _ = curve_fit(
-                lambda og, A, p: amp_model(og, gamma, M_final, A, p),
+                lambda og, A, p: _amp_model(og, R, A, p),
                 omega_fit, abs_num, p0=[1.0, 0.5], maxfev=5000,
             )
         except RuntimeError:
             return 1.0
-        mdl = amp_model(omega_fit, gamma, M_final, *popt)
+        mdl = _amp_model(omega_fit, R, *popt)
         return amp_mismatch(omega_fit, abs_num, mdl)
 
     res = minimize(
@@ -160,13 +160,13 @@ def fit_wkb_amplitude(
     )
 
     pars_best = dict(zip(keys, res.x))
-    gamma = greybody_wkb(omega_fit, num_wkb, pars_best)
+    R = greybody_wkb(omega_fit, num_wkb, pars_best)
     popt, _ = curve_fit(
-        lambda og, A, p: amp_model(og, gamma, M_final, A, p),
+        lambda og, A, p: _amp_model(og, R, A, p),
         omega_fit, abs_num, p0=[1.0, 0.5], maxfev=5000,
     )
     A_fit, p_fit = popt
-    mdl = amp_model(omega_fit, gamma, M_final, A_fit, p_fit)
+    mdl = _amp_model(omega_fit, R, A_fit, p_fit)
     mm = amp_mismatch(omega_fit, abs_num, mdl)
 
     return {
@@ -175,7 +175,7 @@ def fit_wkb_amplitude(
         "p": p_fit,
         "mismatch": mm,
         "model_amplitude": mdl,
-        "greybody": gamma,
+        "reflectivity": R,
     }
 
 
@@ -183,24 +183,23 @@ def fit_amplitude_tabulated(
     omega_fit: np.ndarray,
     H_fit: np.ndarray,
     f_abs,
-    M_final: float,
 ) -> dict:
-    """Amplitude-only fit using the tabulated greybody factor."""
+    """Amplitude-only fit using the tabulated reflectivity."""
     abs_num = np.abs(H_fit)
-    abs_th = f_abs(omega_fit)
+    R_th = f_abs(omega_fit)
     popt, _ = curve_fit(
-        lambda og, A, p: amp_model(og, abs_th, M_final, A, p),
+        lambda og, A, p: _amp_model(og, R_th, A, p),
         omega_fit, abs_num, p0=[1.0, 0.5], maxfev=5000,
     )
     A_fit, p_fit = popt
-    mdl = amp_model(omega_fit, abs_th, M_final, A_fit, p_fit)
+    mdl = _amp_model(omega_fit, R_th, A_fit, p_fit)
     mm = amp_mismatch(omega_fit, abs_num, mdl)
     return {
         "A": A_fit,
         "p": p_fit,
         "mismatch": mm,
         "model_amplitude": mdl,
-        "greybody": abs_th,
+        "reflectivity": R_th,
     }
 
 

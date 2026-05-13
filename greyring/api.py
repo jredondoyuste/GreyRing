@@ -295,7 +295,7 @@ def fit_wkb(
         keys = WKB_KEYS[num_wkb]
         x0_wkb = [qnm[k] for k in keys]
 
-    result = fit_wkb_amplitude(omega_fit, H_fit, M_final, num_wkb, x0_wkb)
+    result = fit_wkb_amplitude(omega_fit, H_fit, num_wkb, x0_wkb)
 
     return WKBFitResult(
         sim_number=sim_number,
