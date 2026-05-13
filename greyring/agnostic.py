@@ -26,7 +26,7 @@ WKB_KEYS: dict[int, tuple[str, ...]] = {
 
 
 def greybody_wkb(omega: np.ndarray, num_wkb: int, pars: dict) -> np.ndarray:
-    """WKB reflectivity R(omega) = 1 - Gamma(omega).
+    """WKB greybody factor Gamma(omega) (transmission coefficient).
 
     Parameters
     ----------
@@ -36,7 +36,7 @@ def greybody_wkb(omega: np.ndarray, num_wkb: int, pars: dict) -> np.ndarray:
 
     Returns
     -------
-    R : reflectivity, real array in [0, 1].  R -> 1 at low freq, R -> 0 at high freq.
+    Gamma : greybody factor, real array in [0, 1].  Gamma -> 0 at low freq, Gamma -> 1 at high freq.
     """
     omega = np.asarray(omega, dtype=float)
     f0 = pars["f0"]
@@ -71,7 +71,7 @@ def greybody_wkb(omega: np.ndarray, num_wkb: int, pars: dict) -> np.ndarray:
         raise ValueError("num_wkb must be 1, 2, or 3")
 
     exponent = np.clip(2.0 * np.pi * iK, -_EXP_CLIP, _EXP_CLIP)
-    return 1.0 / (1.0 + np.exp(-exponent))
+    return 1.0 / (1.0 + np.exp(exponent))
 
 
 def _amp_model(omega: np.ndarray, R: np.ndarray, A: float, p: float) -> np.ndarray:
@@ -86,8 +86,8 @@ def model_wkb(
     A: float,
     p: float,
 ) -> np.ndarray:
-    """Amplitude model: |h(omega)| = A * R(omega) / omega^p."""
-    R = greybody_wkb(omega, num_wkb, pars_wkb)
+    """Amplitude model: |h(omega)| = A * R(omega) / omega^p, with R = 1 - Gamma."""
+    R = 1.0 - greybody_wkb(omega, num_wkb, pars_wkb)
     return _amp_model(omega, R, A, p)
 
 
@@ -136,7 +136,7 @@ def fit_wkb_amplitude(
         if num_wkb >= 3 and pars.get("t1", -1.0) >= 0:
             return 1.0
         try:
-            R = greybody_wkb(omega_fit, num_wkb, pars)
+            R = 1.0 - greybody_wkb(omega_fit, num_wkb, pars)
         except Exception:
             return 1.0
         if not np.all(np.isfinite(R)) or np.max(R) < 1e-30:
@@ -159,7 +159,7 @@ def fit_wkb_amplitude(
     )
 
     pars_best = dict(zip(keys, res.x))
-    R = greybody_wkb(omega_fit, num_wkb, pars_best)
+    R = 1.0 - greybody_wkb(omega_fit, num_wkb, pars_best)
     popt, _ = curve_fit(
         lambda og, A, p: _amp_model(og, R, A, p),
         omega_fit, abs_num, p0=[1.0, 0.5], maxfev=5000,
