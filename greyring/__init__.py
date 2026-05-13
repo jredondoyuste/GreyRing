@@ -1,6 +1,6 @@
-from .api import fit, GreyRingResult
+from .api import fit, GreyRingResult, fit_wkb, WKBFitResult
 
-__all__ = ["fit", "GreyRingResult"]
+__all__ = ["fit", "GreyRingResult", "fit_wkb", "WKBFitResult"]
 
 
 # Bilby waveform models used by the examples.
@@ -21,4 +21,15 @@ from .wkb_reflectivity import (
     greybody_second_order_lr,
     greybody_second_order_qnm,
     greybody_third_order_lr,
+)
+
+# WKB agnostic fitting (QNM parametrization, amplitude-only).
+from .agnostic import (
+    greybody_wkb,
+    model_wkb,
+    fit_wkb_amplitude,
+    fit_amplitude_tabulated,
+    amp_mismatch,
+    load_kerr_qnm,
+    WKB_KEYS,
 )

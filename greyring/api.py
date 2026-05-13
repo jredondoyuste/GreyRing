@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 
 from .model_utils import mismatch_complex
 from .sxs_processing import prepare_fit_data
@@ -11,6 +12,12 @@ from .plotting import (
     set_latex_style,
     make_final_figure,
     build_plot_data,
+)
+from .agnostic import (
+    fit_wkb_amplitude,
+    fit_amplitude_tabulated,
+    load_kerr_qnm,
+    WKB_KEYS,
 )
 
 
@@ -193,4 +200,115 @@ def fit(
         c=fit_data["c_fit"],
         mismatch=mismatch,
         output_file=output_file,
+    )
+
+
+@dataclass
+class WKBFitResult:
+    """Container for an amplitude-only WKB fit."""
+    sim_number: int
+    ell: int
+    m: int
+
+    M_final: float
+    chi_final: float
+
+    omega_x: float
+    omega_i: float
+    omega_f: float
+
+    num_wkb: int
+    wkb_params: dict = field(default_factory=dict)
+
+    A: float = 0.0
+    p: float = 0.0
+
+    mismatch: float = 1.0
+
+
+def fit_wkb(
+    sim_number: int,
+    ell: int,
+    m: int,
+    num_wkb: int,
+    theory_dir: str | Path | None = None,
+    x0_wkb: list[float] | None = None,
+    omega_i_factor: float = 0.7,
+    omega_f_amp_ratio: float = 20.0,
+    omega_max_search: float = 1.0,
+) -> WKBFitResult:
+    """Fit one SXS multipole with a WKB greybody amplitude model.
+
+    Fits only |h(omega)|.  WKB parameters and phenomenological (A, p)
+    are determined jointly via profile likelihood + Nelder-Mead.
+
+    Parameters
+    ----------
+    sim_number : int
+        SXS simulation number.
+    ell, m : int
+        Multipole indices.
+    num_wkb : int
+        WKB order (1, 2, or 3).
+    theory_dir : path, optional
+        Directory containing QNM data files (l{ell}/n{n}l{ell}m{m}.dat).
+        Defaults to examples/sxs_fit/theory/ inside the GreyRing package.
+    x0_wkb : list, optional
+        Initial guess for WKB parameters.  If None, Kerr QNM values
+        are loaded from theory_dir.
+    omega_i_factor : float
+        Factor defining omega_i = omega_i_factor * omega_x.
+    omega_f_amp_ratio : float
+        Amplitude ratio for omega_f selection.
+    omega_max_search : float
+        Maximum dimensionless frequency in the SXS FFT.
+
+    Returns
+    -------
+    WKBFitResult
+    """
+    if theory_dir is None:
+        theory_dir = Path(__file__).resolve().parent.parent / "examples" / "sxs_fit" / "theory"
+    theory_dir = Path(theory_dir)
+
+    import os
+    saved_cwd = os.getcwd()
+    try:
+        os.chdir(str(theory_dir.parent))
+
+        (
+            omega_fit, H_fit, omega_all, H_all,
+            M_final, chi_final, omega_x, omega_i, omega_f,
+        ) = prepare_fit_data(
+            sim_number=sim_number,
+            omega_max_search=omega_max_search,
+            ell=ell,
+            m=m,
+            omega_i_factor=omega_i_factor,
+            ratio_factor=omega_f_amp_ratio,
+        )
+    finally:
+        os.chdir(saved_cwd)
+
+    if x0_wkb is None:
+        qnm = load_kerr_qnm(chi_final, ell, m, theory_dir)
+        keys = WKB_KEYS[num_wkb]
+        x0_wkb = [qnm[k] for k in keys]
+
+    result = fit_wkb_amplitude(omega_fit, H_fit, M_final, num_wkb, x0_wkb)
+
+    return WKBFitResult(
+        sim_number=sim_number,
+        ell=ell,
+        m=m,
+        M_final=M_final,
+        chi_final=chi_final,
+        omega_x=omega_x,
+        omega_i=omega_i,
+        omega_f=omega_f,
+        num_wkb=num_wkb,
+        wkb_params=result["wkb_params"],
+        A=result["A"],
+        p=result["p"],
+        mismatch=result["mismatch"],
     )
