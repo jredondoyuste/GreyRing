@@ -65,8 +65,7 @@ def greybody_wkb(omega: np.ndarray, num_wkb: int, pars: dict) -> np.ndarray:
             u / (4.0 * f0 * t0) * corr_eik
             - df / (16.0 * t0)
             - u**2 / (16.0 * f0**3 * t0) * corr_high
-            + u**3 / (32.0 * f0**5 * t0) * corr_high
-            + f0**2 * (df**2 / (16.0 * t0**4) - (3.0 * t0 - t1) / (12.0 * t0))
+            + u**3 / (32.0 * f0**5 * t0) * (corr_high+ f0**2 * (df**2 / (16.0 * t0**4) - (3.0 * t0 - t1) / (12.0 * t0)))
         )
     else:
         raise ValueError("num_wkb must be 1, 2, or 3")
