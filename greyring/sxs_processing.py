@@ -215,10 +215,14 @@ def find_omegarange(omega,H,omega_x,omega_i_factor=0.7,ratio_factor=20.0,omega_m
     omega2 = omega[mask_after]
     amp2 = amp[mask_after]
 
-    idx_ok = np.where(amp2 <= threshold)[0]
-
-    j = idx_ok[0]
-    omega_f = omega2[j]
+    if len(omega2) == 0:
+        omega_f = omega[-1]
+    else:
+        idx_ok = np.where(amp2 <= threshold)[0]
+        if len(idx_ok) == 0:
+            omega_f = omega2[-1]
+        else:
+            omega_f = omega2[idx_ok[0]]
 
     info = {
         "mode": "amp_ratio",

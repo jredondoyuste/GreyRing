@@ -6,22 +6,10 @@ __all__ = ["fit", "GreyRingResult", "fit_wkb", "WKBFitResult"]
 # Bilby waveform models used by the examples.
 from .waveforms import greyring_22_free_ampl_phase as greyring_injection_22_free_ampl_phase
 
-# WKB agnostic waveform models.
-from .wkb_waveforms import (
-    wkb_eikonal_lr_22,
-    wkb_eikonal_qnm_22,
-    wkb_second_order_lr_22,
-    wkb_second_order_qnm_22,
-)
 
-# WKB reflectivity functions (useful standalone).
-from .wkb_reflectivity import (
-    greybody_eikonal_lr,
-    greybody_eikonal_qnm,
-    greybody_second_order_lr,
-    greybody_second_order_qnm,
-    greybody_third_order_lr,
-)
+
+# WKB bilby waveform models for injection-recovery.
+from .wkb_waveforms import wkb_eikonal_22
 
 # WKB agnostic fitting (QNM parametrization, amplitude-only).
 from .agnostic import (
